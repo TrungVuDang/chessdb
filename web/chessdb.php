@@ -940,7 +940,7 @@ function getMovesWithCheck( $redis, $row, $banmoves, $ply, $enumlimit, $resetlim
 						break;
 				}
 				while( $loop_hash != $current_hash && $loop_hash != $current_hash_bw && ( !$hasLRmirror || ( $hasLRmirror && $loop_hash != $current_hash_lr && $loop_hash != $current_hash_lrbw ) ) );
-				$loopstatus = ccrulecheck( $loop_fen_start, $loopmoves );
+				$loopstatus = ccbrulecheck( $loop_fen_start, $loopmoves );
 				if( $loopstatus > 0 )
 					$GLOBALS['looptt'][$loop_hash_start][$GLOBALS['historytt'][$loop_hash_start]['move']] = $loopstatus;
 			}
@@ -1287,7 +1287,7 @@ function getAnalysisPath( $redis, $row, $banmoves, $ply, $enumlimit, $isbest, $l
 						break;
 				}
 				while( $loop_hash != $current_hash && $loop_hash != $current_hash_bw && ( !$hasLRmirror || ( $hasLRmirror && $loop_hash != $current_hash_lr && $loop_hash != $current_hash_lrbw ) ) );
-				$loopstatus = ccrulecheck( $loop_fen_start, $loopmoves );
+				$loopstatus = ccbrulecheck( $loop_fen_start, $loopmoves );
 				if( $loopstatus > 0 )
 					$GLOBALS['looptt'][$loop_hash_start][$GLOBALS['historytt'][$loop_hash_start]['move']] = $loopstatus;
 			}
@@ -1638,7 +1638,7 @@ try{
 									$score = $score + 1;
 							}
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							if( !scoreExists( $redis, $row, $move ) ) {
 								updateScore( $redis, $row, array( $move => $score ) );
 								echo 'ok';
@@ -1658,7 +1658,7 @@ try{
 								$priority = true;
 							}
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							if( !scoreExists( $redis, $row, $move ) ) {
 								updateQueue( $row, $move, $priority );
 								echo 'ok';
@@ -1671,7 +1671,7 @@ try{
 				if( isset( $_REQUEST['movelist'] ) && !empty( $_REQUEST['movelist'] ) ) {
 					$movelist = explode( "|", $_REQUEST['movelist'] );
 					if( count( $movelist ) < 2048 )
-						echo ccrulecheck( $row, $movelist, true );
+						echo ccbrulecheck( $row, $movelist, true );
 				}
 			}
 			else if( $action == 'queryrule' ) {
@@ -1689,7 +1689,7 @@ try{
 					$nextfen = $row;
 					$isvalid = true;
 					$movecount = count( $movelist );
-					if( $movecount >= 4 && $movecount < 2047 ) {
+					if( $movecount >= 3 && $movecount < 2047 ) {
 						foreach( $movelist as $entry ) {
 							$validmoves = ccbmovegen( $nextfen );
 							if( isset( $validmoves[$entry] ) )
@@ -1709,7 +1709,7 @@ try{
 							$isfirst = true;
 							foreach( $allmoves as $key => $entry ) {
 								array_push( $movelist, $key );
-								$ruleresult = ccrulecheck( $row, $movelist, false, $reptimes );
+								$ruleresult = ccbrulecheck( $row, $movelist, false, $reptimes );
 								array_pop( $movelist );
 								$rulestr = 'none';
 								if( $ruleresult == 1 ) {
@@ -1779,7 +1779,7 @@ try{
 
 						if( $GLOBALS['score'] == 0 ) {
 							foreach( array_keys( $moves ) as $record ) {
-								$moves[$record]['check'] += ccruleischase( $row, $record );
+								$moves[$record]['check'] += ccbruleischase( $row, $record );
 							}
 						}
 						if( $dtmtb )
@@ -1961,7 +1961,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, $banmoves, 0, 20, false, $learn, 0 );
 							if( count( $statmoves ) > 0 && $GLOBALS['counter'] >= 10 && $GLOBALS['counter2'] >= 4 ) {
 								if( count( $statmoves ) > 1 ) {
@@ -2001,7 +2001,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, $banmoves, 0, 20, false, $learn, 0 );
 							if( count( $statmoves ) > 0 && $GLOBALS['counter'] >= 10 && $GLOBALS['counter2'] >= 4 ) {
 								if( count( $statmoves ) > 1 ) {
@@ -2040,7 +2040,7 @@ try{
 						}
 						else if( $action == 'queryall' ) {
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							list( $statmoves, $variations ) = getMoves( $redis, $row, $banmoves, true, true, $learn, 0 );
 							if( count( $statmoves ) > 0 ) {
 								arsort( $statmoves );
@@ -2110,7 +2110,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, $banmoves, 0, 20, false, $learn, 0 );
 							if( count( $statmoves ) > 0 && $GLOBALS['counter'] >= 10 && $GLOBALS['counter2'] >= 4 ) {
 								if( count( $statmoves ) > 1 ) {
@@ -2150,7 +2150,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, $banmoves, 0, 20, false, $learn, 0 );
 							if( count( $statmoves ) > 0 && $GLOBALS['counter'] >= 10 && $GLOBALS['counter2'] >= 4 ) {
 								if( count( $statmoves ) > 1 ) {
@@ -2195,7 +2195,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							$statmoves = getAnalysisPath( $redis, $row, $banmoves, 0, 50, true, $learn, 0, $pv );
 							if( count( $statmoves ) > 0 ) {
 								echo 'score:' . $statmoves[$pv[0]] . ',depth:' . count( $pv ) . ',pv:' . implode( '|', $pv );
@@ -2205,7 +2205,7 @@ try{
 						}
 						else if( $action == 'queryscore' ) {
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							list( $statmoves, $variations ) = getMoves( $redis, $row, $banmoves, true, true, true, 0 );
 							if( count( $statmoves ) > 0 ) {
 								arsort( $statmoves );
@@ -2220,7 +2220,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8889);
+							$redis->pconnect('192.168.1.2', 8889, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, array(), 0, 100, true, true, 0 );
 							if( count( $statmoves ) >= 5 ) {
 								echo 'ok';

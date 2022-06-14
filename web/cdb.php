@@ -1055,7 +1055,7 @@ try{
 									$score = $score + 1;
 							}
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							if( !scoreExists( $redis, $row, $move ) ) {
 								updateScore( $redis, $row, array( $move => $score ) );
 								echo 'ok';
@@ -1075,7 +1075,7 @@ try{
 								$priority = true;
 							}
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							if( !scoreExists( $redis, $row, $move ) ) {
 								updateQueue( $row, $move, $priority );
 								echo 'ok';
@@ -1118,6 +1118,52 @@ try{
 								else
 									echo 'stalemate';
 							}
+							else if( $egtbresult['category'] == 'unknown' ) {
+								$allmoves = cbmovegen( $row );
+								if( count( $allmoves ) > 0 ) {
+									if( $showall ) {
+										if( $isJson )
+											echo '"status":"ok","moves":[{';
+										$isfirst = true;
+										foreach( $allmoves as $record => $score ) {
+											if( !$isfirst ) {
+												if( $isJson )
+													echo '},{';
+												else
+													echo '|';
+											}
+											else
+												$isfirst = false;
+											if( $isJson )
+												echo '"uci":"' . $record . '","san":"' . cbmovesan( $row, array( $record ) )[0] . '","score":"??","rank":0,"note":"? (??-??)"';
+											else
+												echo 'move:' . $record . ',score:??,rank:0,note:? (??-??)';
+										}
+										if( $isJson )
+											echo '}]';
+									}
+									else {
+										if( $isJson )
+											echo '"status":"unknown"';
+										else
+											echo 'unknown';
+									}
+								}
+								else {
+									if( cbincheck( $row ) ) {
+										if( $isJson )
+											echo '"status":"checkmate"';
+										else
+											echo 'checkmate';
+									}
+									else {
+										if( $isJson )
+											echo '"status":"stalemate"';
+										else
+											echo 'stalemate';
+									}
+								}
+							}
 							else
 							{
 								if( $isJson )
@@ -1126,9 +1172,9 @@ try{
 								$isfirst = true;
 								foreach( $egtbresult['moves'] as $move ) {
 									if( !$isfirst ) {
-										if( $move['wdl'] < 0 ) {
+										if( $move['category'] == 'blessed-loss' || $move['category'] == 'maybe-loss' || $move['category'] == 'loss' ) {
 											$step = -$move['dtz'];
-											if( $move['wdl'] == -1 )
+											if( $move['category'] == 'blessed-loss' || $move['category'] == 'maybe-loss' )
 												$score = 20000 - $step;
 											else
 												$score = 30000 - $step;
@@ -1147,10 +1193,10 @@ try{
 													echo '|move:' . $move['uci'] . ',score:' . $score . ',rank:1,note:* (W-' . str_pad( $step, 4, '0', STR_PAD_LEFT ) . ')';
 											}
 										}
-										else if( $move['wdl'] == 0 ) {
+										else if( $move['category'] == 'draw' ) {
 											$step = 0;
 											$score = 0;
-											if( $bestmove['wdl'] == 0 ) {
+											if( $bestmove['category'] == 'draw' ) {
 												if( $move['zeroing'] == $bestmove['zeroing'] && $move['checkmate'] == $bestmove['checkmate'] ) {
 													if( $isJson )
 														echo '},{"uci":"' . $move['uci'] . '","san":"' . $move['san'] . '","score":' . $score . ',"rank":2,"note":"! (D-' . str_pad( $step, 4, '0', STR_PAD_LEFT ) . ')"';
@@ -1173,7 +1219,7 @@ try{
 										}
 										else {
 											$step = $move['dtz'];
-											if( $move['wdl'] == 1 )
+											if( $move['category'] == 'maybe-win' || $move['category'] == 'cursed-win' )
 												$score = $step - 20000;
 											else
 												$score = $step - 30000;
@@ -1185,7 +1231,7 @@ try{
 												else
 													echo '|move:' . $move['uci'] . ',score:' . $score . ',rank:2,note:! (L-' . str_pad( $step, 4, '0', STR_PAD_LEFT ) . ')';
 											}
-											else if( $bestmove['wdl'] > 0 ) {
+											else if( $bestmove['category'] == 'win' || $bestmove['category'] == 'maybe-win' || $bestmove['category'] == 'cursed-win' ) {
 												if( $isJson )
 													echo '},{"uci":"' . $move['uci'] . '","san":"' . $move['san'] . '","score":' . $score . ',"rank":1,"note":"* (L-' . str_pad( $step, 4, '0', STR_PAD_LEFT ) . ')"';
 												else
@@ -1201,7 +1247,7 @@ try{
 									}
 									else {
 										$isfirst = false;
-										if( $bestmove['wdl'] == 0 && $move['wdl'] == 0 ) {
+										if( $bestmove['category'] == 'draw' && $move['category'] == 'draw' ) {
 											$step = 0;
 											$score = 0;
 											if( $isJson )
@@ -1210,9 +1256,9 @@ try{
 												echo 'move:' . $move['uci'] . ',score:' . $score . ',rank:2,note:! (D-' . str_pad( $step, 4, '0', STR_PAD_LEFT ) . ')';
 										}
 										else {
-											if( $move['wdl'] < 0 ) {
+											if( $move['category'] == 'blessed-loss' || $move['category'] == 'maybe-loss' || $move['category'] == 'loss' ) {
 												$step = -$move['dtz'];
-												if( $move['wdl'] == -1 )
+												if( $move['category'] == 'blessed-loss' || $move['category'] == 'maybe-loss' )
 													$score = 20000 - $step;
 												else
 													$score = 30000 - $step;
@@ -1225,7 +1271,7 @@ try{
 											}
 											else {
 												$step = $move['dtz'];
-												if( $move['wdl'] == 1 )
+												if( $move['category'] == 'maybe-win' || $move['category'] == 'cursed-win' )
 													$score = $step - 20000;
 												else
 													$score = $step - 30000;
@@ -1245,7 +1291,7 @@ try{
 						}
 						else if( $action == 'query' || $action == 'querybest' || $action == 'querylearn' || $action == 'querysearch' )
 						{
-							if( $egtbresult['checkmate'] || $egtbresult['stalemate'] ) {
+							if( $egtbresult['checkmate'] || $egtbresult['stalemate'] || $egtbresult['category'] == 'unknown' ) {
 								if( $isJson )
 									echo '"status":"nobestmove"';
 								else
@@ -1253,7 +1299,7 @@ try{
 							}
 							else {
 								$bestmove = reset( $egtbresult['moves'] );
-								if( $bestmove['wdl'] != 0 ) {
+								if( $bestmove['category'] != 'draw' ) {
 									$finals = array();
 									$finalcount = 0;
 									foreach( $egtbresult['moves'] as $move ) {
@@ -1268,13 +1314,13 @@ try{
 									else
 										echo 'egtb:' . end( $finals );
 								}
-								else if( $bestmove['wdl'] == 0 )
+								else if( $bestmove['category'] == 'draw' )
 								{
 									if( $isJson )
 										echo '"status":"ok","search_moves":[{';
 									$isfirst = true;
 									foreach( $egtbresult['moves'] as $move ) {
-										if( $move['wdl'] == 0 ) {
+										if( $move['category'] == 'draw' ) {
 											if( !$isfirst ) {
 												if( $isJson )
 													echo '},{"uci":"' . $key . '","san":"' . $move['san'];
@@ -1304,7 +1350,7 @@ try{
 							}
 						}
 						else if( $action == 'querypv' ) {
-							if( $egtbresult['checkmate'] || $egtbresult['stalemate'] ) {
+							if( $egtbresult['checkmate'] || $egtbresult['stalemate'] || $egtbresult['category'] == 'unknown' ) {
 								if( $isJson )
 									echo '"status":"unknown"';
 								else
@@ -1312,19 +1358,19 @@ try{
 							}
 							else {
 								$bestmove = reset( $egtbresult['moves'] );
-								if( $bestmove['wdl'] < 0 ) {
+								if( $bestmove['category'] == 'blessed-loss' || $bestmove['category'] == 'maybe-loss' || $bestmove['category'] == 'loss' ) {
 									$step = -$bestmove['dtz'];
-									if( $bestmove['wdl'] == -1 )
+									if( $bestmove['category'] == 'blessed-loss' || $bestmove['category'] == 'maybe-loss' )
 										$score = 20000 - $step;
 									else
 										$score = 30000 - $step;
 								}
-								else if( $bestmove['wdl'] == 0 ) {
+								else if( $bestmove['category'] == 'draw' ) {
 									$score = 0;
 								}
 								else {
 									$step = $bestmove['dtz'];
-									if( $bestmove['wdl'] == 1 )
+									if( $bestmove['category'] == 'maybe-win' || $bestmove['category'] == 'cursed-win' )
 										$score = $step - 20000;
 									else
 										$score = $step - 30000;
@@ -1336,7 +1382,7 @@ try{
 							}
 						}
 						else if( $action == 'queryscore' ) {
-							if( $egtbresult['checkmate'] || $egtbresult['stalemate'] ) {
+							if( $egtbresult['checkmate'] || $egtbresult['stalemate'] || $egtbresult['category'] == 'unknown' ) {
 								if( $isJson )
 									echo '"status":"unknown"';
 								else
@@ -1344,19 +1390,19 @@ try{
 							}
 							else {
 								$bestmove = reset( $egtbresult['moves'] );
-								if( $bestmove['wdl'] < 0 ) {
+								if( $bestmove['category'] == 'blessed-loss' || $bestmove['category'] == 'maybe-loss' || $bestmove['category'] == 'loss' ) {
 									$step = -$bestmove['dtz'];
-									if( $bestmove['wdl'] == -1 )
+									if( $bestmove['category'] == 'blessed-loss' || $bestmove['category'] == 'maybe-loss' )
 										$score = 20000 - $step;
 									else
 										$score = 30000 - $step;
 								}
-								else if( $bestmove['wdl'] == 0 ) {
+								else if( $bestmove['category'] == 'draw' ) {
 									$score = 0;
 								}
 								else {
 									$step = $bestmove['dtz'];
-									if( $bestmove['wdl'] == 1 )
+									if( $bestmove['category'] == 'maybe-win' || $bestmove['category'] == 'cursed-win' )
 										$score = $step - 20000;
 									else
 										$score = $step - 30000;
@@ -1367,13 +1413,54 @@ try{
 									echo 'eval:' . $score;
 							}
 						}
+						else if( $action == 'queryengine' ) {
+							if( isset( $_REQUEST['token'] ) && !empty( $_REQUEST['token'] ) && substr( md5( $_REQUEST['board'] . $_REQUEST['token'] ), 0, 2 ) == '00' ) {
+								$movelist = array();
+								$isvalid = true;
+								if( isset( $_REQUEST['movelist'] ) && !empty( $_REQUEST['movelist'] ) ) {
+									$movelist = explode( "|", $_REQUEST['movelist'] );
+									$nextfen = $row;
+									$movecount = count( $movelist );
+									if( $movecount > 0 && $movecount < 2047 ) {
+										foreach( $movelist as $entry ) {
+											$validmoves = cbmovegen( $nextfen );
+											if( isset( $validmoves[$entry] ) )
+												$nextfen = cbmovemake( $nextfen, $entry );
+											else {
+												$isvalid = false;
+												break;
+											}
+										}
+									}
+									else
+										$isvalid = false;
+								}
+								if( $isvalid ) {
+									$memcache_obj->add( 'EngineCount2', 0 );
+									$engcount = $memcache_obj->increment( 'EngineCount2' );
+									$result = getEngineMove( $row, $movelist, 5 - $engcount / 2 );
+									$memcache_obj->decrement( 'EngineCount2' );
+									if( !empty( $result ) ) {
+										echo 'move:' . $result;
+									}
+									else {
+										echo 'nobestmove';
+									}
+								}
+								else
+									echo 'invalid movelist';
+							}
+							else {
+								echo 'invalid parameters';
+							}
+						}
 					}
 					else if( !$endgame || $action == 'queryall' || $action == 'queryscore' || $action == 'querypv' || $action == 'queue' ) {
 						if( $action == 'querybest' ) {
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, 0, 20, false, $learn, 0 );
 							if( count( $statmoves ) > 0 && $GLOBALS['counter'] >= 10 && $GLOBALS['counter2'] >= 4 ) {
 								if( count( $statmoves ) > 1 ) {
@@ -1428,7 +1515,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, 0, 20, false, $learn, 0 );
 							if( count( $statmoves ) > 0 && $GLOBALS['counter'] >= 10 && $GLOBALS['counter2'] >= 4 ) {
 								if( count( $statmoves ) > 1 ) {
@@ -1482,7 +1569,7 @@ try{
 						}
 						else if( $action == 'queryall' ) {
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							list( $statmoves, $variations ) = getMoves( $redis, $row, true, $learn, 0 );
 							if( count( $statmoves ) > 0 ) {
 								if( $isJson )
@@ -1601,7 +1688,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, 0, 20, false, $learn, 0 );
 							if( count( $statmoves ) > 0 && $GLOBALS['counter'] >= 10 && $GLOBALS['counter2'] >= 4 ) {
 								if( count( $statmoves ) > 1 ) {
@@ -1656,7 +1743,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, 0, 20, false, $learn, 0 );
 							if( count( $statmoves ) > 0 && $GLOBALS['counter'] >= 10 && $GLOBALS['counter2'] >= 4 ) {
 								if( count( $statmoves ) > 1 ) {
@@ -1723,7 +1810,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							$statmoves = getAnalysisPath( $redis, $row, 0, 50, true, $learn, 0, $pv );
 							if( count( $statmoves ) > 0 ) {
 								if( $isJson )
@@ -1740,7 +1827,7 @@ try{
 						}
 						else if( $action == 'queryscore' ) {
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							list( $statmoves, $variations ) = getMoves( $redis, $row, true, true, 0 );
 							if( count( $statmoves ) > 0 ) {
 								arsort( $statmoves );
@@ -1761,7 +1848,7 @@ try{
 							$GLOBALS['counter'] = 0;
 							$GLOBALS['boardtt'] = new Judy( Judy::STRING_TO_INT );
 							$redis = new Redis();
-							$redis->pconnect('192.168.1.2', 8888);
+							$redis->pconnect('192.168.1.2', 8888, 1.0);
 							$statmoves = getMovesWithCheck( $redis, $row, 0, 100, true, true, 0 );
 							if( count( $statmoves ) >= 5 ) {
 								if( $isJson )
